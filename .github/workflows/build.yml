@@ -1,26 +1,53 @@
 name: Build APK Nativo
-on: [push]
+on:
+  push:
+    branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
-      - run: npm install
-      - run: npm install @capacitor/core @capacitor/cli @capacitor/android
-      - run: rm -rf android
-      - run: npx cap add android
-      - run: npx cap copy android
-      - run: npx cap sync android
-      - name: Build APK
-        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install Capacitor
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Add Android platform
+        run: |
+          rm -rf android
+          npx cap add android
+          npx cap copy android
+
+      - name: Poner tu icono chulo como icono nativo
+        run: |
+          ICON="www/icon-512.png"
+          if [ ! -f "$ICON" ]; then ICON="www/icon-192.png"; fi
+          echo "Usando $ICON como icono nativo"
+          for d in android/app/src/main/res/mipmap-*; do
+            cp "$ICON" "$d/ic_launcher.png"
+            cp "$ICON" "$d/ic_launcher_round.png"
+            if [ -f "$d/ic_launcher_foreground.png" ]; then
+              cp "$ICON" "$d/ic_launcher_foreground.png"
+            fi
+          done
+
+      - name: Build APK Debug
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
         with:
           name: Casino-Pro-Nativo-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
