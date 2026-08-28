@@ -15,7 +15,7 @@ jobs:
       - run: npm install
       - run: npx cap add android || true
       - run: npx cap copy android
-      - run: cd android && chmod +x gradlew &&./gradlew assembleDebug
+      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: Casino-Pro-Nativo-APK
