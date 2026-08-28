@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Casino Pro: Poker & Blackjack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { overscroll-behavior-y: contain; min-height: 100dvh; }
+        .casino-bg { background-color: #0f172a; background-image: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%); }
+        .table-felt { background: radial-gradient(ellipse at center, #0a5225 0%, #063818 100%); box-shadow: inset 0 0 40px rgba(0,0,0,0.85); }
+        .table-border { border: clamp(4px, 1vmin, 10px) solid #3e2723; box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 10px rgba(0,0,0,0.6); }
+        .playing-card { box-shadow: 0 2px 4px rgba(0,0,0,0.4); transition: transform 0.2s; }
+        .card-size { width: clamp(1.5rem, 3.6vmin, 2.6rem); height: clamp(2.1rem, 5vmin, 3.6rem); }
+        .card-size-lg { width: clamp(1.7rem, 4.2vmin, 3rem); height: clamp(2.4rem, 5.8vmin, 4.1rem); }
+        .card-size-bj { width: clamp(3.2rem, 8.5vmin, 4.8rem); height: clamp(4.4rem, 11.5vmin, 6.7rem); }
+        .pos-top { top: 1.5%; left: 50%; transform: translate(-50%, 0); z-index: 25; }
+        .pos-bottom { bottom: 1%; left: 50%; transform: translate(-50%, 0); z-index: 25; }
+        .pos-left { top: 50%; left: 1.5%; transform: translate(0, -50%); z-index: 25; }
+        .pos-right { top: 50%; right: 1.5%; transform: translate(0, -50%); z-index: 25; }
+        :root { --header-h: 42px; --controls-h: 76px; }
+        @media (max-width: 639px) { :root { --controls-h: 84px; } }
+        header { height: var(--header-h); }
+        main { height: calc(100dvh - var(--header-h)); position: relative; overflow: hidden; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+        .controls-container { height: var(--controls-h); padding-bottom: calc(0.2rem + env(safe-area-inset-bottom)); }
+        #poker-table-wrapper { width: min(96vw, 860px); height: min(58vh, 500px); aspect-ratio: 1.85 / 1; margin: auto; position: relative; }
+        @media (orientation: portrait) { #poker-table-wrapper { width: 98vw; height: min(54vh, 460px); aspect-ratio: 1.6 / 1; } }
+        @media (max-height: 700px) { #poker-table-wrapper { height: 52vh; } }
+        @keyframes flipIn { 0% { transform: rotateY(90deg) scale(0.9); opacity: 0.5; } 100% { transform: rotateY(0deg) scale(1); opacity: 1; } }
+        .animate-flip { animation: flipIn 0.35s ease-out forwards; }
+        .active-turn { box-shadow: 0 0 14px 3px rgba(245, 158, 11, 0.75); border-color: #f59e0b !important; }
+        .action-bubble { position: absolute; top: -24px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 2px 7px; border-radius: 10px; font-size: 9px; font-weight: bold; border: 1px solid #475569; opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap; z-index: 50; }
+        .show-bubble { opacity: 1; animation: floatUp 1.4s ease-out forwards; }
+        @keyframes floatUp { 0% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -18px); opacity: 0; } }
+        .card-overlap > div { margin-left: -0.9rem; } .card-overlap > div:first-child { margin-left: 0; }
+        @media (max-width: 640px) { .card-overlap > div { margin-left: -0.65rem; } }
+        .poker-player-box { padding: 3px 6px !important; border-radius: 8px !important; gap: 5px !important; }
+        .table-card-locked { opacity: 0.5; filter: grayscale(0.6); pointer-events: none; }
+    
+        /* --- TIENDA STYLES --- */
+        .shop-item { transition: all 0.2s; }
+        .shop-item:hover { transform: translateY(-2px); }
+        .shop-item-equipped { border-color: #f59e0b !important; box-shadow: 0 0 0 2px rgba(245,158,11,0.3); }
+        .shop-preview-card { width: 42px; height: 58px; border-radius: 5px; }
+        .shop-felt-preview { width: 100%; height: 58px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.1); }
+        .shop-tab-active { background: rgb(217 119 6) !important; color: white !important; }
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Casino Pro">
+    <link rel="apple-touch-icon" href="icon-512.png">
+    <script>
+    if('serviceWorker' in navigator){
+      window.addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js'); });
+    }
+    </script>
+
+</head>
+<body class="casino-bg text-white font-sans flex flex-col select-none">
+    <header class="bg-slate-900/90 border-b border-slate-700 px-2 sm:px-4 flex justify-between items-center z-30 shadow-md">
+        <div class="flex items-center space-x-2 text-amber-500">
+            <i class="fa-solid fa-crown text-lg"></i>
+            <h1 class="text-sm sm:text-base font-bold tracking-wider hidden sm:block">CASINO PRO</h1>
+            <span id="game-title" class="text-[11px] sm:text-xs font-semibold text-slate-300 ml-2 hidden"></span>
+            <span id="online-indicator" class="hidden ml-2 px-1.5 py-0.5 bg-emerald-900 text-emerald-400 border border-emerald-700 rounded text-[9px] font-bold">ONLINE</span>
+        </div>
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <div class="bg-slate-800 px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center">
+                <i class="fa-solid fa-coins text-amber-400 mr-1.5 text-xs"></i>
+                <span id="user-chips" class="font-bold text-amber-300 text-xs sm:text-sm">1,000</span>
+                <button onclick="addFreeChips()" class="ml-1.5 bg-amber-600 hover:bg-amber-500 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full text-[10px] text-white font-bold transition active:scale-90"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <button onclick="openShop()" id="btn-shop" class="bg-slate-800 hover:bg-amber-600 border border-amber-500/30 px-2.5 py-1 rounded text-[11px] font-bold transition"><i class="fa-solid fa-store mr-1"></i> Tienda</button>
+            <button onclick="leaveGame()" id="btn-leave" class="bg-rose-700 hover:bg-rose-600 px-2.5 py-1 rounded text-[11px] font-bold transition hidden"><i class="fa-solid fa-door-open mr-1"></i> Salir</button>
+        </div>
+    </header>
+
+    <main class="w-full relative flex items-center justify-center">
+        <!-- MENÚ PRINCIPAL -->
+        <div id="screen-menu" class="absolute inset-0 flex items-center justify-center overflow-auto p-4 z-20">
+            <div class="w-full max-w-md bg-slate-800/95 backdrop-blur p-6 rounded-3xl shadow-2xl border border-slate-700 text-center">
+                <h2 class="text-3xl font-bold text-amber-400 mb-2 drop-shadow-md">Casino Pro</h2>
+                <p class="text-xs text-slate-400 mb-5">Elige tu modo - tu banca: <span id="menu-bank" class="text-amber-400 font-bold">$1,000</span></p>
+                <input id="player-name-input" type="text" maxlength="12" placeholder="Tu nombre (opcional)" class="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 mb-6 text-center font-semibold focus:outline-none focus:border-amber-500">
+                <div class="space-y-4">
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-amber-500/30 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-amber-300"><i class="fa-solid fa-store"></i><span class="text-sm font-bold">Tienda de Estilos</span></div>
+                        <button onclick="openShop()" class="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 rounded-lg font-bold text-[11px] shadow">ABRIR</button>
+                    </div>
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-red-900/50">
+                        <button onclick="startBlackjack()" class="w-full py-4 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 rounded-xl font-bold text-lg flex justify-center items-center gap-3 transition active:scale-95 shadow-lg border border-red-500/30"><div class="bg-white/20 p-2 rounded-lg"><i class="fa-solid fa-suit-spade fa-fw"></i></div> Blackjack (Offline)</button>
+                    </div>
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-emerald-900/50">
+                        <button onclick="showPokerLobby()" class="w-full py-3 bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-600 hover:to-emerald-500 rounded-xl font-bold flex justify-center items-center gap-3 transition active:scale-95 shadow-lg border border-emerald-500/30 mb-4"><div class="bg-white/20 p-1.5 rounded-lg"><i class="fa-solid fa-layer-group fa-fw"></i></div> Poker - Mesas por Niveles</button>
+                        <div class="flex items-center py-2 opacity-50 mb-2"><div class="flex-grow border-t border-slate-500"></div><span class="px-2 text-xs font-bold uppercase tracking-widest text-slate-300">Online</span><div class="flex-grow border-t border-slate-500"></div></div>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <button onclick="createOnlineRoom()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition active:scale-95 text-sm"><i class="fa-solid fa-plus mr-1"></i> Crear Sala</button>
+                            <div class="flex flex-1 gap-2">
+                                <input id="room-code-input" type="text" placeholder="Código" class="w-full bg-slate-800 border border-slate-600 rounded-xl px-2 text-center uppercase font-bold focus:outline-none focus:border-indigo-500 text-sm">
+                                <button onclick="joinOnlineRoom()" class="bg-indigo-700 hover:bg-indigo-600 px-4 py-3 rounded-xl font-bold transition text-sm">Unirse</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOBBY DE MESAS DE POKER - NUEVO -->
+        <div id="screen-poker-lobby" class="hidden absolute inset-0 z-20 flex flex-col bg-slate-900/95 backdrop-blur-sm overflow-auto p-3">
+            <div class="w-full max-w-lg mx-auto">
+                <div class="flex items-center justify-between mb-4 pt-2">
+                    <button onclick="showScreen('screen-menu')" class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-600"><i class="fa-solid fa-arrow-left mr-1"></i> Volver</button>
+                    <div class="bg-slate-800 px-3 py-1 rounded-full border border-amber-500/30 text-xs font-bold"><i class="fa-solid fa-wallet mr-1 text-amber-400"></i> <span id="lobby-chips">$1,000</span></div>
+                </div>
+                <h2 class="text-2xl font-bold text-white text-center mb-1">Elige Mesa</h2>
+                <p class="text-[11px] text-slate-400 text-center mb-4">Cuanto más alta la mesa, más ganas... y más puedes perder</p>
+                <div id="poker-tables-list" class="space-y-2.5 pb-6"></div>
+            </div>
+        </div>
+
+        <!-- POKER SCREEN -->
+        <div id="screen-poker" class="hidden absolute inset-0 z-10 flex flex-col items-center justify-between p-1">
+            <div id="poker-table-wrapper" class="relative flex items-center justify-center my-auto">
+                <div id="poker-felt" class="absolute inset-0 rounded-[80px] sm:rounded-[100px] table-felt table-border flex items-center justify-center shadow-2xl">
+                    <div class="flex flex-col items-center space-y-1.5 z-0">
+                        <div class="bg-black/70 px-3 py-1 rounded-full border border-amber-500/20 flex space-x-4 shadow-inner">
+                            <div class="text-center"><span class="text-[8px] text-slate-400 uppercase block leading-none tracking-widest">Bote</span><span id="pot-amount" class="text-[11px] sm:text-xs font-bold text-amber-400">$0</span></div>
+                            <div class="border-l border-slate-600/50 pl-4 text-center"><span class="text-[8px] text-slate-400 uppercase block leading-none tracking-widest">Apuesta</span><span id="current-bet-display" class="text-[11px] sm:text-xs font-bold text-emerald-400">$20</span></div>
+                        </div>
+                        <div id="community-cards" class="flex space-x-0.5 sm:space-x-1 h-10 sm:h-14 items-center justify-center min-w-[110px]"></div>
+                        <div class="flex items-center gap-2">
+                            <div id="game-status" class="text-[9px] font-medium text-amber-200/80 h-4 bg-black/50 px-2.5 rounded-full flex items-center justify-center tracking-wide">Esperando...</div>
+                            <div id="table-blinds-badge" class="text-[8px] font-bold bg-slate-900/80 border border-slate-600 px-2 py-0.5 rounded-full text-slate-300">5/10</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="player-2" class="absolute pos-top flex flex-col items-center hidden"><div id="p2-action" class="action-bubble">Acción</div><div id="p2-cards" class="flex space-x-0.5 mb-[-8px] z-0"></div><div id="p2-box" class="poker-player-box relative bg-slate-900/95 border border-slate-600 flex items-center shadow-lg z-10"><div id="p2-dealer" class="hidden absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white text-black rounded-full flex items-center justify-center text-[7px] font-bold border border-slate-800 shadow">D</div><div class="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center text-[8px] font-bold text-white">2</div><div class="leading-none"><div id="p2-name" class="text-[9px] font-bold text-slate-200 w-12 truncate leading-3">Player</div><div class="flex items-center gap-1"><div id="p2-chips" class="text-[8px] text-amber-400 font-bold leading-3">$1k</div><div id="p2-allin" class="hidden text-[6px] font-bold text-rose-400 bg-rose-900/50 px-1 rounded">ALL-IN</div></div></div></div><div id="p2-bet" class="text-emerald-400 text-[7px] font-bold mt-0.5 bg-black/60 px-1.5 py-0 rounded-full hidden border border-emerald-900/30">$0</div><div id="p2-handname" class="hidden text-[7px] text-cyan-300 font-bold bg-black/60 px-1.5 py-0 rounded-full mt-0.5 border border-cyan-900/30"></div></div>
+                <div id="player-1" class="absolute pos-left flex flex-col items-center hidden"><div id="p1-action" class="action-bubble">Acción</div><div id="p1-cards" class="flex space-x-0.5 mb-[-8px] z-0"></div><div id="p1-box" class="poker-player-box relative bg-slate-900/95 border border-slate-600 flex items-center shadow-lg z-10"><div id="p1-dealer" class="hidden absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white text-black rounded-full flex items-center justify-center text-[7px] font-bold border border-slate-800 shadow">D</div><div class="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center text-[8px] font-bold text-white">1</div><div class="leading-none"><div id="p1-name" class="text-[9px] font-bold text-slate-200 w-12 truncate leading-3">Player</div><div class="flex items-center gap-1"><div id="p1-chips" class="text-[8px] text-amber-400 font-bold leading-3">$1k</div><div id="p1-allin" class="hidden text-[6px] font-bold text-rose-400 bg-rose-900/50 px-1 rounded">ALL-IN</div></div></div></div><div id="p1-bet" class="text-emerald-400 text-[7px] font-bold mt-0.5 bg-black/60 px-1.5 py-0 rounded-full hidden border border-emerald-900/30">$0</div><div id="p1-handname" class="hidden text-[7px] text-cyan-300 font-bold bg-black/60 px-1.5 py-0 rounded-full mt-0.5 border border-cyan-900/30"></div></div>
+                <div id="player-3" class="absolute pos-right flex flex-col items-center hidden"><div id="p3-action" class="action-bubble">Acción</div><div id="p3-cards" class="flex space-x-0.5 mb-[-8px] z-0"></div><div id="p3-box" class="poker-player-box relative bg-slate-900/95 border border-slate-600 flex items-center shadow-lg z-10"><div id="p3-dealer" class="hidden absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white text-black rounded-full flex items-center justify-center text-[7px] font-bold border border-slate-800 shadow">D</div><div class="w-5 h-5 rounded-full bg-rose-600 flex items-center justify-center text-[8px] font-bold text-white">3</div><div class="leading-none"><div id="p3-name" class="text-[9px] font-bold text-slate-200 w-12 truncate leading-3">Player</div><div class="flex items-center gap-1"><div id="p3-chips" class="text-[8px] text-amber-400 font-bold leading-3">$1k</div><div id="p3-allin" class="hidden text-[6px] font-bold text-rose-400 bg-rose-900/50 px-1 rounded">ALL-IN</div></div></div></div><div id="p3-bet" class="text-emerald-400 text-[7px] font-bold mt-0.5 bg-black/60 px-1.5 py-0 rounded-full hidden border border-emerald-900/30">$0</div><div id="p3-handname" class="hidden text-[7px] text-cyan-300 font-bold bg-black/60 px-1.5 py-0 rounded-full mt-0.5 border border-cyan-900/30"></div></div>
+                <div id="player-0" class="absolute pos-bottom flex flex-col items-center hidden"><div id="p0-action" class="action-bubble">Acción</div><div id="p0-cards" class="flex space-x-0.5 mb-[-10px] z-0"></div><div id="p0-box" class="relative bg-slate-900 border border-amber-500/50 rounded-lg px-2.5 py-1 flex items-center space-x-1.5 shadow-xl z-10"><div id="p0-dealer" class="hidden absolute -top-1.5 -left-1.5 w-4 h-4 bg-white text-black rounded-full flex items-center justify-center text-[8px] font-bold border border-slate-800 shadow">D</div><div class="w-6 h-6 rounded-full bg-amber-600 flex items-center justify-center text-[9px] font-bold border border-amber-400/30">Tú</div><div class="leading-none"><div id="p0-name" class="text-[10px] font-bold text-white w-16 truncate leading-3">Tú</div><div class="flex items-center gap-1"><div id="p0-chips" class="text-[9px] text-amber-400 font-bold leading-3">$1k</div><div id="p0-allin" class="hidden text-[7px] font-bold text-rose-400 bg-rose-900/50 px-1 rounded">ALL-IN</div></div></div></div><div id="p0-bet" class="text-emerald-400 text-[8px] font-bold mt-0.5 bg-black/60 px-2 py-0 rounded-full hidden border border-emerald-900/30">$0</div><div id="p0-handname" class="hidden text-[8px] text-cyan-300 font-bold bg-black/70 px-2 py-0 rounded-full mt-0.5 border border-cyan-900/50"></div></div>
+            </div>
+            <div id="poker-controls" class="controls-container w-full bg-slate-900/90 border-t border-slate-700/50 flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-3 z-30 opacity-50 pointer-events-none transition-opacity">
+                <div class="flex space-x-1.5 w-full sm:w-auto justify-center px-2">
+                    <button onclick="userAction('fold')" class="flex-1 sm:flex-none px-3 sm:px-5 py-2 bg-gradient-to-b from-rose-600 to-rose-800 rounded-lg font-bold text-[11px] shadow border border-rose-500/30 active:scale-95">Retirarse</button>
+                    <button onclick="userAction('check')" id="btn-check" class="flex-1 sm:flex-none px-3 sm:px-5 py-2 bg-gradient-to-b from-slate-600 to-slate-800 rounded-lg font-bold text-[11px] shadow border border-slate-500/30 active:scale-95">Pasar</button>
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto justify-center bg-slate-800/80 p-1 rounded-lg border border-slate-700 mx-2">
+                    <input id="raise-slider" type="range" min="20" max="1000" step="10" oninput="updateRaise(this.value)" class="w-24 sm:w-32 accent-amber-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    <button onclick="userAction('raise')" id="btn-raise" class="px-3 sm:px-5 py-1.5 bg-gradient-to-b from-amber-500 to-amber-700 rounded-lg font-bold text-[11px] shadow border border-amber-400/30 whitespace-nowrap active:scale-95">Subir <span id="raise-lbl" class="bg-black/30 px-1 py-0 rounded ml-1 text-[10px]">$20</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BLACKJACK SCREEN -->
+        <div id="screen-blackjack" class="hidden absolute inset-0 table-felt z-10 flex flex-col justify-between">
+            <div class="flex-1 flex flex-col items-center justify-end pb-4 relative pt-4"><div class="absolute top-3 left-1/2 -translate-x-1/2 bg-black/60 px-4 py-1 rounded-full border border-red-500/30 flex items-center space-x-2"><span class="text-xs text-slate-300 font-bold uppercase tracking-wider">Mesa paga 3:2</span></div><div class="flex items-center gap-3 mb-2"><div class="bg-slate-900/80 border border-slate-600 rounded-lg px-3 py-1 flex items-center gap-2"><span class="text-xs font-bold text-slate-300">Croupier</span><div id="bj-dealer-score" class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white border border-slate-500 hidden">?</div></div></div><div id="bj-dealer-cards" class="flex card-overlap justify-center min-h-[90px]"></div></div>
+            <div class="h-16 flex flex-col items-center justify-center z-10 w-full px-4"><div id="bj-msg" class="text-lg sm:text-xl font-bold text-amber-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] h-7 text-center transition-all duration-300 mb-1">Haz tu apuesta</div><div id="bj-bet-display" class="bg-black/50 border border-amber-500/50 rounded-full px-4 py-0.5 text-xs font-bold text-emerald-400 hidden">Apuesta: $0</div></div>
+            <div class="flex-1 flex flex-col items-center justify-start pt-4 relative"><div id="bj-player-cards" class="flex card-overlap justify-center min-h-[90px] mb-2"></div><div class="flex items-center gap-3"><div class="bg-slate-900/80 border border-slate-600 rounded-lg px-4 py-1.5 flex items-center gap-2 shadow-lg"><span class="text-sm font-bold text-amber-400" id="bj-player-name">Tú</span><div id="bj-player-score" class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-bold text-white border border-indigo-400 hidden">0</div></div></div></div>
+            <div id="blackjack-controls" class="controls-container w-full bg-slate-900/90 border-t border-slate-700/50 flex flex-col justify-center items-center gap-2 px-2 z-30"><div id="bj-bet-controls" class="w-full max-w-md flex flex-col sm:flex-row items-center gap-3"><div class="flex-1 flex items-center bg-slate-800 p-2 rounded-xl border border-slate-600 w-full"><input id="bj-bet-slider" type="range" min="10" max="1000" step="10" value="50" oninput="document.getElementById('bj-bet-val').innerText='$'+this.value" class="w-full accent-amber-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"></div><button onclick="placeBjBet()" class="w-full sm:w-auto px-8 py-2.5 bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 rounded-xl font-bold text-sm shadow-lg border border-amber-400/50 active:scale-95 transition-transform flex items-center justify-center">Apostar <span id="bj-bet-val" class="ml-2 bg-black/30 px-2 py-0.5 rounded text-white">$50</span></button></div><div id="bj-play-controls" class="w-full max-w-md hidden flex justify-center gap-2 sm:gap-4"><button onclick="bjHit()" class="flex-1 py-2.5 bg-gradient-to-b from-emerald-600 to-emerald-800 rounded-xl font-bold text-sm shadow-lg border border-emerald-500/50 active:scale-95 flex flex-col items-center"><i class="fa-solid fa-hand-pointer mb-0.5 text-emerald-200"></i> Pedir</button><button onclick="bjStand()" class="flex-1 py-2.5 bg-gradient-to-b from-rose-600 to-rose-800 rounded-xl font-bold text-sm shadow-lg border border-rose-500/50 active:scale-95 flex flex-col items-center"><i class="fa-solid fa-hand mb-0.5 text-rose-200"></i> Plantarse</button><button id="bj-btn-double" onclick="bjDouble()" class="flex-1 py-2.5 bg-gradient-to-b from-indigo-600 to-indigo-800 rounded-xl font-bold text-sm shadow-lg border border-indigo-500/50 active:scale-95 flex flex-col items-center"><i class="fa-solid fa-angles-up mb-0.5 text-indigo-200"></i> Doblar</button></div></div>
+        </div>
+
+
+        <!-- TIENDA SCREEN -->
+        <div id="screen-shop" class="hidden absolute inset-0 z-20 flex flex-col bg-slate-900/95 backdrop-blur-sm overflow-auto p-3 scrollbar-thin">
+            <div class="w-full max-w-lg mx-auto">
+                <div class="flex items-center justify-between mb-4 pt-2">
+                    <button onclick="showScreen('screen-menu')" class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-600"><i class="fa-solid fa-arrow-left mr-1"></i> Volver</button>
+                    <div class="bg-slate-800 px-3 py-1 rounded-full border border-amber-500/30 text-xs font-bold"><i class="fa-solid fa-coins mr-1 text-amber-400"></i> <span id="shop-chips-display" class="shop-chips text-amber-300">$1,000</span></div>
+                </div>
+                <h2 class="text-2xl font-bold text-white text-center mb-1"><i class="fa-solid fa-store text-amber-400 mr-2"></i>Tienda de Estilos</h2>
+                <p class="text-[11px] text-slate-400 text-center mb-4">Desbloquea colores de cartas y tapetes con tus fichas</p>
+                <div class="flex bg-slate-800 rounded-xl p-1 mb-4 border border-slate-700">
+                    <button id="shop-tab-cards" onclick="switchShopTab('cards')" class="flex-1 py-2.5 rounded-lg font-bold text-xs bg-amber-600 text-white transition"><i class="fa-solid fa-clone mr-1"></i> Cartas</button>
+                    <button id="shop-tab-felts" onclick="switchShopTab('felts')" class="flex-1 py-2.5 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition"><i class="fa-solid fa-table mr-1"></i> Tapetes</button>
+                </div>
+                <div id="shop-grid-cards" class="grid grid-cols-2 gap-3 pb-20"></div>
+                <div id="shop-grid-felts" class="hidden grid grid-cols-2 gap-3 pb-20"></div>
+            </div>
+        </div>
+
+        <!-- WAITING ROOM -->
+        <div id="screen-waiting" class="hidden absolute inset-0 flex items-center justify-center overflow-auto p-4 z-30 bg-slate-900/90 backdrop-blur-sm"><div class="w-full max-w-sm bg-slate-800/95 p-6 rounded-3xl shadow-2xl border border-slate-700 text-center"><h2 class="text-2xl font-bold text-white mb-4">Sala de Espera</h2><div class="bg-slate-900 border border-indigo-500/50 rounded-xl py-3 mb-6 shadow-inner"><span class="text-slate-400 text-sm block mb-1 uppercase tracking-wider">Código de Sala</span><span id="display-room-code" class="text-3xl font-bold text-amber-400 tracking-[0.2em]">----</span></div><div class="text-left bg-slate-900/80 rounded-xl p-4 mb-6 min-h-[120px] border border-slate-700"><h3 class="text-sm text-slate-400 mb-3 border-b border-slate-700 pb-2 flex justify-between"><span>Jugadores</span><span class="bg-indigo-900 text-indigo-300 px-2 rounded-full text-xs font-bold"><span id="player-count">1</span>/4</span></h3><ul id="waiting-players-list" class="space-y-2 text-sm font-semibold text-slate-200"></ul></div><button id="btn-start-online" onclick="startOnlineGameHost()" class="w-full py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 rounded-xl font-bold text-lg hidden transition active:scale-95 shadow-lg border border-emerald-400/30 text-white">Iniciar Partida</button><div id="waiting-host-msg" class="flex flex-col items-center gap-2 hidden"><i class="fa-solid fa-circle-notch fa-spin text-amber-400 text-2xl"></i><p class="text-sm text-amber-300 font-medium">Esperando al creador...</p></div></div></div>
+    </main>
+
+    <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity"><div class="bg-slate-800 p-6 sm:p-8 rounded-3xl max-w-sm w-full text-center border border-amber-500/30 shadow-[0_0_40px_rgba(0,0,0,0.8)] relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 via-emerald-400 to-indigo-400"></div><div id="modal-icon" class="text-5xl mb-4 text-amber-400 drop-shadow-md"><i class="fa-solid fa-circle-info"></i></div><h3 id="modal-title" class="text-2xl font-bold text-white mb-3 tracking-wide">Atención</h3><p id="modal-msg" class="text-slate-300 font-medium mb-8 whitespace-pre-line text-sm sm:text-base leading-relaxed">Mensaje</p><button onclick="closeModal()" class="w-full py-3 sm:py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 rounded-xl font-bold text-white transition active:scale-95 shadow-lg">Aceptar</button></div></div>
+
+    <script>
+        const VAL_MAP = {'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14};
+        const SUITS = ['♠','♥','♦','♣'];
+        const SUIT_COLORS = {'♠':'text-slate-900', '♣':'text-slate-900', '♥':'text-red-600', '♦':'text-red-600'};
+
+        // DEFINICIÓN DE MESAS POR ECONOMÍA
+        const POKER_TABLES = [
+            { id: 'bronze', name: 'Bronce', desc: 'La Cantina', sb: 5, bb: 10, minBuyIn: 100, maxBuyIn: 500, minChips: 50, color: 'from-amber-800 to-yellow-700', border: 'border-amber-700/40', icon: 'fa-beer-mug-empty', felt: '#0a5225' },
+            { id: 'silver', name: 'Plata', desc: 'Saloon', sb: 10, bb: 20, minBuyIn: 200, maxBuyIn: 1000, minChips: 200, color: 'from-slate-600 to-slate-500', border: 'border-slate-500/40', icon: 'fa-coins', felt: '#0d5f2a' },
+            { id: 'gold', name: 'Oro', desc: 'High Stakes', sb: 25, bb: 50, minBuyIn: 500, maxBuyIn: 2500, minChips: 500, color: 'from-yellow-600 to-amber-500', border: 'border-yellow-500/50', icon: 'fa-crown', felt: '#104d1f' },
+            { id: 'platinum', name: 'Platino', desc: 'VIP Room', sb: 50, bb: 100, minBuyIn: 1000, maxBuyIn: 5000, minChips: 1000, color: 'from-indigo-600 to-violet-600', border: 'border-indigo-500/50', icon: 'fa-gem', felt: '#0e3d1a' },
+            { id: 'diamond', name: 'Diamante', desc: 'Elite Club', sb: 100, bb: 200, minBuyIn: 2500, maxBuyIn: 10000, minChips: 2500, color: 'from-cyan-600 to-blue-600', border: 'border-cyan-400/50', icon: 'fa-diamond', felt: '#0a3a16' },
+            { id: 'legend', name: 'Leyenda', desc: 'All-In Paradise', sb: 250, bb: 500, minBuyIn: 5000, maxBuyIn: 25000, minChips: 5000, color: 'from-rose-700 to-red-600', border: 'border-rose-500/60', icon: 'fa-fire', felt: '#052e10' }
+        ];
+
+        // --- TIENDA DEFINICIÓN ---
+        const CARD_SHOP = [
+            { id: 'classic', name: 'Clásico', desc: 'Blanco tradicional', price: 0, backLabel: 'Azul' },
+            { id: 'dark', name: 'Noche', desc: 'Pro oscuro', price: 250, backLabel: 'Obsidiana' },
+            { id: 'neon', name: 'Neón', desc: 'Cian + magenta', price: 500, backLabel: 'Cyber' },
+            { id: 'gold', name: 'Oro', desc: 'Dorada premium', price: 1000, backLabel: 'Luxe' },
+            { id: 'holo', name: 'Holográfico', desc: 'Efecto prisma', price: 1500, backLabel: 'Prisma' },
+            { id: 'crimson', name: 'Crimson', desc: 'Rojo sangre', price: 700, backLabel: 'Sangre' }
+        ];
+        const FELT_SHOP = [
+            { id: 'green', name: 'Verde Clásico', desc: 'El original', price: 0, css: 'radial-gradient(ellipse at center, #0a5225 0%, #063818 100%)' },
+            { id: 'blue', name: 'Azul Noche', desc: 'Mesa fría', price: 300, css: 'radial-gradient(ellipse at center, #1e3a8a 0%, #0f172a 100%)' },
+            { id: 'red', name: 'Rojo Casino', desc: 'Las Vegas', price: 300, css: 'radial-gradient(ellipse at center, #7f1d1d 0%, #450a0a 100%)' },
+            { id: 'purple', name: 'Púrpura VIP', desc: 'Sala alta', price: 600, css: 'radial-gradient(ellipse at center, #581c87 0%, #2e1065 100%)' },
+            { id: 'carbon', name: 'Carbón', desc: 'Minimal negro', price: 800, css: 'radial-gradient(ellipse at center, #27272a 0%, #09090b 100%)' },
+            { id: 'goldfelt', name: 'Oro Lujoso', desc: 'High roller', price: 1200, css: 'radial-gradient(ellipse at center, #854d0e 0%, #422006 100%)' },
+            { id: 'teal', name: 'Esmeralda', desc: 'Verde profundo', price: 450, css: 'radial-gradient(ellipse at center, #0f766e 0%, #042f2e 100%)' },
+            { id: 'midnight', name: 'Medianoche', desc: 'Azul petróleo', price: 900, css: 'radial-gradient(ellipse at center, #0c4a6e 0%, #082f49 100%)' }
+        ];
+        const CARD_STYLE_DETAILS = {
+            classic: { frontBg: 'bg-white', frontBorder: 'border-slate-300', backBg: 'from-blue-800 to-slate-900', backBorder: 'border-white/10', backInner: 'border-blue-400/20', suitRed: 'text-red-600', suitBlack: 'text-slate-900' },
+            dark: { frontBg: 'bg-slate-900', frontBorder: 'border-slate-600', backBg: 'from-zinc-800 to-black', backBorder: 'border-amber-500/20', backInner: 'border-amber-500/10', suitRed: 'text-red-400', suitBlack: 'text-slate-100' },
+            neon: { frontBg: 'bg-black', frontBorder: 'border-cyan-400/60', backBg: 'from-cyan-900 via-slate-900 to-black', backBorder: 'border-cyan-400/50', backInner: 'border-cyan-400/30', suitRed: 'text-cyan-400', suitBlack: 'text-fuchsia-400' },
+            gold: { frontBg: 'bg-gradient-to-br from-amber-50 to-amber-200', frontBorder: 'border-amber-500/50', backBg: 'from-amber-600 to-yellow-900', backBorder: 'border-amber-300/30', backInner: 'border-amber-200/20', suitRed: 'text-red-700', suitBlack: 'text-slate-900' },
+            holo: { frontBg: 'bg-gradient-to-br from-white via-slate-50 to-indigo-100', frontBorder: 'border-indigo-400/50', backBg: 'from-violet-800 via-indigo-800 to-cyan-800', backBorder: 'border-white/20', backInner: 'border-white/20', suitRed: 'text-violet-600', suitBlack: 'text-slate-900' },
+            crimson: { frontBg: 'bg-gradient-to-br from-zinc-900 to-black', frontBorder: 'border-red-900/60', backBg: 'from-red-800 to-black', backBorder: 'border-red-500/30', backInner: 'border-red-400/20', suitRed: 'text-red-500', suitBlack: 'text-amber-200' }
+        };
+        let shopState = { ownedCards: ['classic'], ownedFelts: ['green'], equippedCard: 'classic', equippedFelt: 'green', tab: 'cards' };
+
+        function loadShopState() {
+            try {
+                const saved = localStorage.getItem('casino_shop_v2');
+                if(saved) {
+                    const parsed = JSON.parse(saved);
+                    if(parsed.ownedCards) shopState.ownedCards = parsed.ownedCards;
+                    if(parsed.ownedFelts) shopState.ownedFelts = parsed.ownedFelts;
+                    if(parsed.equippedCard) shopState.equippedCard = parsed.equippedCard;
+                    if(parsed.equippedFelt) shopState.equippedFelt = parsed.equippedFelt;
+                }
+            } catch(e){}
+        }
+        function saveShopState() {
+            try { localStorage.setItem('casino_shop_v2', JSON.stringify(shopState)); } catch(e){}
+        }
+        function getCardStyleDef(id){ return CARD_STYLE_DETAILS[id] || CARD_STYLE_DETAILS.classic; }
+        function getFeltDef(id){ return FELT_SHOP.find(f=>f.id===id) || FELT_SHOP[0]; }
+
+        function openShop(){
+            loadShopState();
+            updateShopChips();
+            renderShop();
+            showScreen('screen-shop');
+        }
+        function switchShopTab(tab){
+            shopState.tab = tab;
+            document.getElementById('shop-tab-cards').className = tab==='cards' ? 'flex-1 py-2.5 rounded-lg font-bold text-xs bg-amber-600 text-white transition' : 'flex-1 py-2.5 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition';
+            document.getElementById('shop-tab-felts').className = tab==='felts' ? 'flex-1 py-2.5 rounded-lg font-bold text-xs bg-amber-600 text-white transition' : 'flex-1 py-2.5 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition';
+            document.getElementById('shop-grid-cards').classList.toggle('hidden', tab!=='cards');
+            document.getElementById('shop-grid-felts').classList.toggle('hidden', tab!=='felts');
+            saveShopState();
+        }
+        function updateShopChips(){
+            document.querySelectorAll('.shop-chips').forEach(el=> el.innerText = `$${userChips.toLocaleString()}`);
+            const shopDisplay = document.getElementById('shop-chips-display');
+            if(shopDisplay) shopDisplay.innerText = `$${userChips.toLocaleString()}`;
+        }
+        function renderShop(){
+            const cardGrid = document.getElementById('shop-grid-cards');
+            const feltGrid = document.getElementById('shop-grid-felts');
+            cardGrid.innerHTML = CARD_SHOP.map(item=>{
+                const owned = shopState.ownedCards.includes(item.id);
+                const equipped = shopState.equippedCard===item.id;
+                const style = getCardStyleDef(item.id);
+                return `<div class="shop-item bg-slate-800 rounded-2xl border ${equipped?'shop-item-equipped border-amber-500':'border-slate-700'} p-3 flex flex-col shadow">
+                    <div class="flex gap-2 mb-2.5 justify-center">
+                        <div class="shop-preview-card playing-card border ${style.backBorder} bg-gradient-to-br ${style.backBg} flex items-center justify-center"><div class="w-[60%] h-[60%] border ${style.backInner} rounded-[2px]"></div></div>
+                        <div class="shop-preview-card playing-card ${style.frontBg} border ${style.frontBorder} flex flex-col justify-between p-1 ${style.suitRed}"><span class="text-[9px] font-black leading-none">A</span><span class="text-center text-[14px] leading-none flex-1 flex items-center justify-center">${item.id==='neon'?'♦':'♠'}</span><span class="text-[9px] font-black self-end rotate-180 leading-none">A</span></div>
+                    </div>
+                    <div class="text-center mb-2">
+                        <div class="font-bold text-white text-[13px] flex items-center justify-center gap-1">${item.name} ${equipped?'<i class="fa-solid fa-check text-amber-400 text-[10px]"></i>':''}</div>
+                        <div class="text-[10px] text-slate-400">${item.desc}</div>
+                        <div class="mt-1 text-[10px] ${item.price===0?'text-emerald-400':'text-amber-300'} font-bold">${item.price===0?'GRATIS':'$'+item.price.toLocaleString()}</div>
+                    </div>
+                    <div class="mt-auto">
+                        ${!owned ? `<button onclick="buyShopItem('cards','${item.id}')" class="w-full py-2 rounded-xl font-bold text-[11px] ${userChips>=item.price?'bg-amber-600 hover:bg-amber-500 text-white':'bg-slate-700 text-slate-400 cursor-not-allowed'} border border-white/10 transition">${userChips>=item.price?'<i class=\"fa-solid fa-cart-shopping mr-1\"></i>Comprar':'Falta $'+(item.price-userChips).toLocaleString()}</button>`
+                        : equipped ? `<div class="w-full py-2 rounded-xl bg-emerald-900/50 border border-emerald-500/30 text-center font-bold text-[11px] text-emerald-300"><i class="fa-solid fa-circle-check mr-1"></i>Equipado</div>`
+                        : `<button onclick="equipShopItem('cards','${item.id}')" class="w-full py-2 rounded-xl font-bold text-[11px] bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 transition">Equipar</button>`}
+                    </div>
+                </div>`;
+            }).join('');
+            feltGrid.innerHTML = FELT_SHOP.map(item=>{
+                const owned = shopState.ownedFelts.includes(item.id);
+                const equipped = shopState.equippedFelt===item.id;
+                return `<div class="shop-item bg-slate-800 rounded-2xl border ${equipped?'shop-item-equipped border-amber-500':'border-slate-700'} p-3 flex flex-col shadow">
+                    <div class="shop-felt-preview mb-2.5 shadow-inner" style="background:${item.css}"></div>
+                    <div class="text-center mb-2">
+                        <div class="font-bold text-white text-[13px] flex items-center justify-center gap-1">${item.name} ${equipped?'<i class="fa-solid fa-check text-amber-400 text-[10px]"></i>':''}</div>
+                        <div class="text-[10px] text-slate-400">${item.desc}</div>
+                        <div class="mt-1 text-[10px] ${item.price===0?'text-emerald-400':'text-amber-300'} font-bold">${item.price===0?'GRATIS':'$'+item.price.toLocaleString()}</div>
+                    </div>
+                    <div class="mt-auto">
+                        ${!owned ? `<button onclick="buyShopItem('felts','${item.id}')" class="w-full py-2 rounded-xl font-bold text-[11px] ${userChips>=item.price?'bg-amber-600 hover:bg-amber-500 text-white':'bg-slate-700 text-slate-400 cursor-not-allowed'} border border-white/10 transition">${userChips>=item.price?'<i class=\"fa-solid fa-cart-shopping mr-1\"></i>Comprar':'Falta $'+(item.price-userChips).toLocaleString()}</button>`
+                        : equipped ? `<div class="w-full py-2 rounded-xl bg-emerald-900/50 border border-emerald-500/30 text-center font-bold text-[11px] text-emerald-300"><i class="fa-solid fa-circle-check mr-1"></i>Equipado</div>`
+                        : `<button onclick="equipShopItem('felts','${item.id}')" class="w-full py-2 rounded-xl font-bold text-[11px] bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 transition">Equipar</button>`}
+                    </div>
+                </div>`;
+            }).join('');
+            switchShopTab(shopState.tab||'cards');
+            updateShopChips();
+        }
+        function buyShopItem(type, id){
+            const list = type==='cards' ? CARD_SHOP : FELT_SHOP;
+            const item = list.find(i=>i.id===id);
+            if(!item) return;
+            const ownedList = type==='cards' ? shopState.ownedCards : shopState.ownedFelts;
+            if(ownedList.includes(id)) return;
+            if(userChips < item.price){
+                showModal("Fichas insuficientes", `Te faltan $${(item.price - userChips).toLocaleString()} para comprar ${item.name}.`, "error");
+                return;
+            }
+            userChips -= item.price;
+            ownedList.push(id);
+            if(type==='cards') shopState.equippedCard = id; else shopState.equippedFelt = id;
+            document.getElementById('user-chips').innerText = userChips.toLocaleString();
+            const menuBank = document.getElementById('menu-bank'); if(menuBank) menuBank.innerText = `$${userChips.toLocaleString()}`;
+            saveShopState();
+            applyFeltStyles();
+            renderShop();
+            showModal("¡Comprado!", `${item.name} desbloqueado y equipado.`, "win");
+        }
+        function equipShopItem(type, id){
+            const ownedList = type==='cards' ? shopState.ownedCards : shopState.ownedFelts;
+            if(!ownedList.includes(id)) return;
+            if(type==='cards') shopState.equippedCard = id; else shopState.equippedFelt = id;
+            saveShopState();
+            applyFeltStyles();
+            renderShop();
+        }
+        function applyFeltStyles(){
+            const feltDef = getFeltDef(shopState.equippedFelt);
+            const pokerFelt = document.getElementById('poker-felt');
+            const bjScreen = document.getElementById('screen-blackjack');
+            if(pokerFelt){
+                if(shopState.equippedFelt==='green'){
+                    if(currentPokerTable && currentPokerTable.felt){
+                        pokerFelt.style.background = `radial-gradient(ellipse at center, ${currentPokerTable.felt} 0%, #051a0a 100%)`;
+                    } else {
+                        pokerFelt.style.background = feltDef.css;
+                    }
+                } else {
+                    pokerFelt.style.background = feltDef.css;
+                }
+            }
+            if(bjScreen){
+                if(shopState.equippedFelt==='green'){
+                    bjScreen.style.background = '';
+                } else {
+                    bjScreen.style.background = feltDef.css;
+                }
+            }
+        }
+
+        let userChips = 1000;
+        let playerDisplayName = "Jugador";
+        let activeGame = null;
+        let currentPokerTable = POKER_TABLES[1]; // por defecto Plata
+
+        window.onload = () => { loadShopState(); refillIfNeeded(); updateShopChips(); applyFeltStyles(); showScreen('screen-menu'); };
+
+        function showScreen(screenId) {
+            ['screen-menu', 'screen-poker', 'screen-poker-lobby', 'screen-blackjack', 'screen-waiting', 'screen-shop'].forEach(id => {
+                const el = document.getElementById(id);
+                if(!el) return;
+                el.classList.add('hidden');
+                if(id !== 'screen-menu' && id !== 'screen-waiting' && id !== 'screen-poker-lobby') el.classList.remove('flex');
+            });
+            const activeEl = document.getElementById(screenId);
+            activeEl.classList.remove('hidden');
+            if(screenId === 'screen-poker' || screenId === 'screen-blackjack') activeEl.classList.add('flex');
+        }
+
+        function refillIfNeeded() {
+            let refilled = false;
+            if (userChips <= 0) { userChips = 500; refilled = true; }
+            document.getElementById('user-chips').innerText = userChips.toLocaleString();
+            const menuBank = document.getElementById('menu-bank'); if(menuBank) menuBank.innerText = `$${userChips.toLocaleString()}`;
+            const lobbyChips = document.getElementById('lobby-chips'); if(lobbyChips) lobbyChips.innerText = `$${userChips.toLocaleString()}`;
+            updateShopChips();
+            if (refilled) showModal("Fichas Agotadas", "Te hemos recargado $500 de cortesía.");
+            return refilled;
+        }
+
+        function addFreeChips() {
+            userChips += 1000;
+            document.getElementById('user-chips').innerText = userChips.toLocaleString();
+            const menuBank = document.getElementById('menu-bank'); if(menuBank) menuBank.innerText = `$${userChips.toLocaleString()}`;
+            if (activeGame === 'poker' && gameState.players && gameState.players[myPlayerIndex]) {
+                gameState.players[myPlayerIndex].chips += 1000;
+                renderPokerTable();
+                if (isOnline && isHost) syncGameState();
+            }
+            if (activeGame === 'blackjack') updateBjBetSlider();
+            if(!document.getElementById('screen-poker-lobby').classList.contains('hidden')) renderPokerTables();
+        }
+
+        function showModal(title, msg, icon = "info") {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-msg').innerText = msg;
+            let iconHtml = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
+            if (icon === 'win') iconHtml = '<i class="fa-solid fa-trophy text-amber-400"></i>';
+            if (icon === 'error') iconHtml = '<i class="fa-solid fa-triangle-exclamation text-rose-500"></i>';
+            document.getElementById('modal-icon').innerHTML = iconHtml;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+        function renderCard(c, hidden = false, type = 'normal') {
+            let sizeClass = type === 'lg' ? 'card-size-lg' : type === 'bj' ? 'card-size-bj' : 'card-size';
+            const cardStyle = getCardStyleDef(shopState.equippedCard);
+            if (hidden) {
+                return `<div class="${sizeClass} playing-card rounded-[4px] border ${cardStyle.backBorder} flex items-center justify-center bg-gradient-to-br ${cardStyle.backBg} animate-flip"><div class="w-[70%] h-[70%] border ${cardStyle.backInner} rounded-[2px]"></div></div>`;
+            }
+            const suitIsRed = (c.suit === '♥' || c.suit === '♦');
+            const suitClass = suitIsRed ? cardStyle.suitRed : cardStyle.suitBlack;
+            return `<div class="${sizeClass} playing-card ${cardStyle.frontBg} rounded-[4px] border ${cardStyle.frontBorder} flex flex-col justify-between p-0.5 sm:p-1 ${suitClass} animate-flip"><span class="text-[9px] sm:text-[11px] font-black leading-none">${c.val}</span><span class="text-center text-[11px] sm:text-[15px] leading-none flex-1 flex items-center justify-center">${c.suit}</span><span class="text-[9px] sm:text-[11px] font-black leading-none self-end rotate-180">${c.val}</span></div>`;
+        }
+        function createDeck() { let deck = []; for (const suit of SUITS) for (const val in VAL_MAP) deck.push({ suit, val, num: VAL_MAP[val] }); return deck; }
+        function shuffledDeck(numDecks = 1) { let deck = []; for(let d=0; d<numDecks; d++) deck = deck.concat(createDeck()); for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } return deck; }
+        function leaveGame() {
+            // Si estabas en poker, cobras lo que te queda en mesa -> suma a banca
+            if(activeGame === 'poker' && gameState.players && gameState.players[myPlayerIndex]) {
+                const myTableChips = gameState.players[myPlayerIndex].chips;
+                if(myTableChips > 0) {
+                    userChips += myTableChips;
+                }
+                pokerOutside = 0;
+                pokerInitialBuyIn = 0;
+            }
+            if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+            if (botTimeout) { clearTimeout(botTimeout); botTimeout = null; }
+            isOnline = false; isHost = false; currentRoomId = null; activeGame = null;
+            document.getElementById('online-indicator').classList.add('hidden');
+            document.getElementById('btn-leave').classList.add('hidden');
+            document.getElementById('game-title').classList.add('hidden');
+            showScreen('screen-menu');
+            document.getElementById('user-chips').innerText = userChips.toLocaleString();
+            const menuBank = document.getElementById('menu-bank'); if(menuBank) menuBank.innerText = `$${userChips.toLocaleString()}`;
+            const lobbyChips = document.getElementById('lobby-chips'); if(lobbyChips) lobbyChips.innerText = `$${userChips.toLocaleString()}`;
+            updateShopChips();
+            refillIfNeeded();
+        }
+
+        // LOBBY LOGIC
+        function showPokerLobby() {
+            refillIfNeeded();
+            renderPokerTables();
+            showScreen('screen-poker-lobby');
+        }
+        function renderPokerTables() {
+            const list = document.getElementById('poker-tables-list');
+            list.innerHTML = POKER_TABLES.map(table => {
+                const canEnter = userChips >= table.minChips;
+                const missing = table.minChips - userChips;
+                return `
+                <div class="relative bg-slate-800 rounded-2xl border ${table.border} p-3 flex items-center justify-between shadow-lg overflow-hidden ${!canEnter ? 'table-card-locked' : ''}">
+                    <div class="absolute inset-0 bg-gradient-to-r ${table.color} opacity-20"></div>
+                    <div class="relative flex items-center gap-3 z-10">
+                        <div class="w-11 h-11 rounded-xl bg-gradient-to-br ${table.color} flex items-center justify-center text-white shadow border border-white/20">
+                            <i class="fa-solid ${table.icon} text-[16px]"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-white text-sm">${table.name}</span>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-black/50 border border-white/20 text-slate-300">${table.desc}</span>
+                            </div>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="text-[10px] font-bold text-amber-300"><i class="fa-solid fa-circle-dot mr-0.5 text-[8px]"></i> ${table.sb}/${table.bb}</span>
+                                <span class="text-[9px] text-slate-400">Buy-in $${table.minBuyIn.toLocaleString()}-$${table.maxBuyIn.toLocaleString()}</span>
+                            </div>
+                            <div class="text-[8px] text-slate-500 mt-0.5">Mín. para entrar: $${table.minChips.toLocaleString()}</div>
+                        </div>
+                    </div>
+                    <div class="relative z-10 flex flex-col items-end gap-1">
+                        ${canEnter ? 
+                            `<button onclick="startPokerAtTable('${table.id}')" class="px-4 py-2 bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 rounded-xl font-bold text-[11px] shadow border border-emerald-400/30 active:scale-95 text-white">ENTRAR</button>` 
+                            : 
+                            `<button class="px-3 py-1.5 bg-slate-700 rounded-xl font-bold text-[10px] text-slate-400 border border-slate-600 cursor-not-allowed"><i class="fa-solid fa-lock mr-1"></i> BLOQUEADA</button><span class="text-[8px] text-rose-400 font-bold">Te faltan $${missing.toLocaleString()}</span>`
+                        }
+                    </div>
+                </div>`;
+            }).join('');
+            document.getElementById('lobby-chips').innerText = `$${userChips.toLocaleString()}`;
+        }
+        function startPokerAtTable(tableId) {
+            const table = POKER_TABLES.find(t => t.id === tableId);
+            if(!table) return;
+            if(userChips < table.minChips) {
+                return showModal("Fondos insuficientes", `Necesitas $${table.minChips.toLocaleString()} para entrar a ${table.name}. Te faltan $${(table.minChips - userChips).toLocaleString()}.`, "error");
+            }
+            currentPokerTable = table;
+            startOfflinePoker(table);
+        }
+
+        // BLACKJACK
+        let bjState = { deck: [], playerHand: [], dealerHand: [], bet: 0, phase: 'BETTING' };
+        function startBlackjack() {
+            const nameInput = document.getElementById('player-name-input').value.trim();
+            playerDisplayName = nameInput || "Tú";
+            document.getElementById('bj-player-name').innerText = playerDisplayName;
+            activeGame = 'blackjack';
+            let title = document.getElementById('game-title'); title.innerText = "BLACKJACK"; title.classList.remove('hidden');
+            document.getElementById('btn-leave').classList.remove('hidden');
+            showScreen('screen-blackjack');
+            if(userChips <= 0) refillIfNeeded();
+            applyFeltStyles();
+            resetBjRound();
+        }
+        function resetBjRound() {
+            bjState.deck = shuffledDeck(4); bjState.playerHand = []; bjState.dealerHand = []; bjState.bet = 0; bjState.phase = 'BETTING';
+            document.getElementById('bj-player-cards').innerHTML = ''; document.getElementById('bj-dealer-cards').innerHTML = '';
+            document.getElementById('bj-player-score').classList.add('hidden'); document.getElementById('bj-dealer-score').classList.add('hidden');
+            document.getElementById('bj-bet-display').classList.add('hidden');
+            setBjMsg("Haz tu apuesta", "text-amber-400");
+            document.getElementById('bj-bet-controls').classList.remove('hidden');
+            document.getElementById('bj-play-controls').classList.add('hidden'); document.getElementById('bj-play-controls').classList.remove('flex');
+            updateBjBetSlider();
+        }
+        function updateBjBetSlider() {
+            const slider = document.getElementById('bj-bet-slider');
+            const maxBet = Math.min(userChips, 1000);
+            if(userChips < 10) { slider.min = 0; slider.max = 0; slider.value = 0; }
+            else { slider.min = 10; slider.max = maxBet; slider.value = Math.min(50, maxBet); }
+            document.getElementById('bj-bet-val').innerText = `$${slider.value}`;
+        }
+        function getBjScore(hand) { let total = 0, aces = 0; for(let c of hand) { if(c.num === 14) { aces++; total += 11; } else if(c.num >= 11) total += 10; else total += c.num; } while(total > 21 && aces > 0) { total -= 10; aces--; } return total; }
+        function setBjMsg(msg, colorClass = "text-amber-400") { const el = document.getElementById('bj-msg'); el.className = `text-lg sm:text-xl font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] h-7 text-center transition-all duration-300 mb-1 ${colorClass}`; el.innerText = msg; }
+        function placeBjBet() {
+            const amount = parseInt(document.getElementById('bj-bet-slider').value);
+            if (amount < 10 || amount > userChips) return showModal("Aviso", "Apuesta inválida o fichas insuficientes.");
+            userChips -= amount; 
+            document.getElementById('user-chips').innerText = userChips.toLocaleString();
+            const menuBankPre = document.getElementById('menu-bank'); if(menuBankPre) menuBankPre.innerText = `$${userChips.toLocaleString()}`;
+            updateShopChips();
+            bjState.bet = amount; bjState.phase = 'PLAYING';
+            document.getElementById('bj-bet-display').innerText = `Apuesta: $${amount}`; document.getElementById('bj-bet-display').classList.remove('hidden');
+            document.getElementById('bj-bet-controls').classList.add('hidden');
+            document.getElementById('bj-play-controls').classList.remove('hidden'); document.getElementById('bj-play-controls').classList.add('flex');
+            bjState.playerHand.push(bjState.deck.pop(), bjState.deck.pop()); bjState.dealerHand.push(bjState.deck.pop(), bjState.deck.pop());
+            renderBjHands();
+            if(getBjScore(bjState.playerHand) === 21) resolveBj();
+            else { setBjMsg("Tu turno", "text-white"); document.getElementById('bj-btn-double').disabled = (userChips < bjState.bet); document.getElementById('bj-btn-double').style.opacity = (userChips < bjState.bet) ? '0.5' : '1'; }
+        }
+        function renderBjHands(revealDealer = false) {
+            document.getElementById('bj-player-cards').innerHTML = bjState.playerHand.map(c => renderCard(c, false, 'bj')).join('');
+            const pScore = getBjScore(bjState.playerHand); const pScoreEl = document.getElementById('bj-player-score'); pScoreEl.innerText = pScore; pScoreEl.classList.remove('hidden'); pScoreEl.className = `w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold text-white border ${pScore > 21 ? 'bg-rose-600 border-rose-400' : 'bg-indigo-600 border-indigo-400'}`;
+            const dCont = document.getElementById('bj-dealer-cards'); let dHtml = ''; let dScoreVisible = 0;
+            if(bjState.dealerHand.length > 0) { if(!revealDealer) { dHtml += renderCard(bjState.dealerHand[0], false, 'bj') + renderCard(bjState.dealerHand[1], true, 'bj'); dScoreVisible = getBjScore([bjState.dealerHand[0]]); } else { dHtml = bjState.dealerHand.map(c => renderCard(c, false, 'bj')).join(''); dScoreVisible = getBjScore(bjState.dealerHand); } }
+            dCont.innerHTML = dHtml; if(dScoreVisible > 0) { document.getElementById('bj-dealer-score').innerText = dScoreVisible; document.getElementById('bj-dealer-score').classList.remove('hidden'); }
+        }
+        function bjHit() { if(bjState.phase !== 'PLAYING') return; document.getElementById('bj-btn-double').disabled = true; document.getElementById('bj-btn-double').style.opacity = '0.5'; bjState.playerHand.push(bjState.deck.pop()); renderBjHands(); if(getBjScore(bjState.playerHand) > 21) { setBjMsg("¡Te pasaste!", "text-rose-500"); setTimeout(resolveBj, 1000); } else if (getBjScore(bjState.playerHand) === 21) bjStand(); }
+        function bjDouble() { if(bjState.phase !== 'PLAYING' || userChips < bjState.bet) return; userChips -= bjState.bet; bjState.bet *= 2; 
+            document.getElementById('user-chips').innerText = userChips.toLocaleString(); 
+            const menuBankD = document.getElementById('menu-bank'); if(menuBankD) menuBankD.innerText = `$${userChips.toLocaleString()}`;
+            updateShopChips();
+            document.getElementById('bj-bet-display').innerText = `Apuesta: $${bjState.bet}`; bjState.playerHand.push(bjState.deck.pop()); renderBjHands(); if(getBjScore(bjState.playerHand) > 21) { setBjMsg("¡Te pasaste!", "text-rose-500"); setTimeout(resolveBj, 1000); } else bjStand(); }
+        function bjStand() { if(bjState.phase !== 'PLAYING') return; bjState.phase = 'END'; document.getElementById('bj-play-controls').classList.add('hidden'); document.getElementById('bj-play-controls').classList.remove('flex'); setBjMsg("Turno del Croupier...", "text-slate-300"); renderBjHands(true); setTimeout(playDealerBj, 800); }
+        function playDealerBj() { if(getBjScore(bjState.playerHand) > 21) { resolveBj(); return; } if (getBjScore(bjState.dealerHand) < 17) { bjState.dealerHand.push(bjState.deck.pop()); renderBjHands(true); setTimeout(playDealerBj, 800); } else setTimeout(resolveBj, 500); }
+        function resolveBj() {
+            bjState.phase = 'END'; renderBjHands(true); document.getElementById('bj-play-controls').classList.add('hidden'); document.getElementById('bj-play-controls').classList.remove('flex');
+            const pScore = getBjScore(bjState.playerHand); const dScore = getBjScore(bjState.dealerHand); const isPBj = pScore === 21 && bjState.playerHand.length === 2; const isDBj = dScore === 21 && bjState.dealerHand.length === 2;
+            let result = '', color = '', winAmt = 0;
+            if (pScore > 21) { result = "¡Pierdes!"; color = "text-rose-500"; } else if (dScore > 21) { result = "¡Ganas! Croupier se pasa."; color = "text-emerald-400"; winAmt = bjState.bet * 2; } else if (isPBj && !isDBj) { result = "¡BLACKJACK!"; color = "text-amber-400"; winAmt = bjState.bet + (bjState.bet * 1.5); } else if (!isPBj && isDBj) { result = "Croupier tiene Blackjack."; color = "text-rose-500"; } else if (pScore > dScore) { result = "¡Ganas!"; color = "text-emerald-400"; winAmt = bjState.bet * 2; } else if (dScore > pScore) { result = "Pierdes."; color = "text-rose-500"; } else { result = "Empate (Push)"; color = "text-slate-300"; winAmt = bjState.bet; }
+            setBjMsg(result, color); if(winAmt > 0) { userChips += Math.floor(winAmt); } 
+            document.getElementById('user-chips').innerText = userChips.toLocaleString();
+            const menuBankBj = document.getElementById('menu-bank'); if(menuBankBj) menuBankBj.innerText = `$${userChips.toLocaleString()}`;
+            updateShopChips();
+            setTimeout(resetBjRound, 3000);
+        }
+
+        // POKER LOGIC
+        const HAND_NAMES = ['Carta Alta','Pareja','Doble Pareja','Trío','Escalera','Color','Full House','Póker','Escalera de Color'];
+        const STAGE_ORDER = ['PREFLOP','FLOP','TURN','RIVER'];
+        let isOnline = false; let isHost = false; let currentRoomId = null;
+        let myPlayerIndex = 0; let myId = null; let pollInterval = null; let lastProcessedSeq = 0; let botTimeout = null;
+        let gameState = { players: [], community: [], deck: [], stage: 'PREFLOP', dealerIndex: -1, turnIndex: 0, currentBet: 0, minRaise: 20, bigBlind: 20, smallBlind: 10, isShowdown: false };
+
+        function startOfflinePoker(tableConfig = null) {
+            const nameInput = document.getElementById('player-name-input').value.trim();
+            playerDisplayName = nameInput || "Tú"; isOnline = false; activeGame = 'poker';
+            
+            // Usar mesa seleccionada o la actual
+            const table = tableConfig || currentPokerTable;
+            currentPokerTable = table;
+
+            // Calcular buy-in basado en tu banca - BANCA REAL: resta entrada
+            let buyIn = Math.min(userChips, table.maxBuyIn);
+            buyIn = Math.max(buyIn, table.minBuyIn);
+            if(userChips > table.maxBuyIn) buyIn = table.maxBuyIn;
+            if(userChips < buyIn) {
+                return showModal("Fondos insuficientes", `Necesitas $${buyIn.toLocaleString()} para entrar.`, "error");
+            }
+            // RESTA ENTRADA DE LA BANCA
+            userChips -= buyIn;
+            pokerInitialBuyIn = buyIn;
+            pokerOutside = userChips; // lo que queda fuera
+            document.getElementById('user-chips').innerText = userChips.toLocaleString();
+            const menuBankEntry = document.getElementById('menu-bank'); if(menuBankEntry) menuBankEntry.innerText = `$${userChips.toLocaleString()}`;
+            const lobbyChipsEntry = document.getElementById('lobby-chips'); if(lobbyChipsEntry) lobbyChipsEntry.innerText = `$${userChips.toLocaleString()}`;
+            updateShopChips();
+            
+            let title = document.getElementById('game-title');
+            title.innerText = `${table.name.toUpperCase()} ${table.sb}/${table.bb}`; 
+            title.classList.remove('hidden');
+            document.getElementById('btn-leave').classList.remove('hidden');
+            document.getElementById('table-blinds-badge').innerText = `${table.sb}/${table.bb}`;
+            
+            // Cambiar color del fieltro según mesa (respeta tienda si no es verde clásico)
+            if(shopState.equippedFelt === 'green'){
+                document.getElementById('poker-felt').style.background = `radial-gradient(ellipse at center, ${table.felt} 0%, #051a0a 100%)`;
+            } else {
+                applyFeltStyles();
+            }
+
+            showScreen('screen-poker');
+
+            gameState = {
+                players: [
+                    { id: 'me', name: playerDisplayName, chips: buyIn, cards: [], bet: 0, totalBet: 0, folded: false, isBot: false, hasActed: false, isAllIn: false },
+                    { id: 'b1', name: "Carlos", chips: buyIn, cards: [], bet: 0, totalBet: 0, folded: false, isBot: true, aggression: 0.7, hasActed: false, isAllIn: false },
+                    { id: 'b2', name: "Ana", chips: buyIn, cards: [], bet: 0, totalBet: 0, folded: false, isBot: true, aggression: 0.3, hasActed: false, isAllIn: false },
+                    { id: 'b3', name: "Elena", chips: buyIn, cards: [], bet: 0, totalBet: 0, folded: false, isBot: true, aggression: 0.5, hasActed: false, isAllIn: false }
+                ],
+                community: [], deck: [], stage: 'PREFLOP', dealerIndex: -1, turnIndex: 0, currentBet: 0, minRaise: table.bb, bigBlind: table.bb, smallBlind: table.sb, isShowdown: false
+            };
+            myPlayerIndex = 0; 
+            startPokerHand();
+        }
+
+        function showActionBubble(slotId, text) { if (!text) return; const bubble = document.getElementById(`p${slotId}-action`); if (!bubble) return; bubble.innerText = text; bubble.classList.remove('show-bubble'); void bubble.offsetWidth; bubble.classList.add('show-bubble'); }
+        function updateRaise(val) { document.getElementById('raise-lbl').innerText = `$${val}`; }
+        function activePlayers(gs) { return gs.players.filter(p => !p.folded); }
+        function playersWhoCanAct(gs) { return activePlayers(gs).filter(p => p.chips > 0); }
+        function nextActiveIndex(fromIdx) { const n = gameState.players.length; let i = (fromIdx + 1) % n; let loops = 0; while (loops < n) { const p = gameState.players[i]; if (!p.folded && p.chips > 0) return i; i = (i + 1) % n; loops++; } return fromIdx; }
+        function postBlind(idx, amt) { const p = gameState.players[idx]; const pay = Math.min(amt, p.chips); p.chips -= pay; p.bet += pay; p.totalBet += pay; if (p.chips === 0) p.isAllIn = true; }
+        function startPokerHand() {
+            // BANCA REAL - rebuy descuenta de banca
+            gameState.players.forEach(p => { if (p.chips <= 0) { 
+                const table = currentPokerTable;
+                if(p.id === 'me') {
+                    if(userChips < table.minChips) {
+                        showModal("Sin fondos", `Te has quedado sin fichas para esta mesa (${table.name} ${table.sb}/${table.bb}). Necesitas $${table.minChips}. Te llevo al lobby.`, "error");
+                        setTimeout(()=>showPokerLobby(), 1500);
+                        return;
+                    }
+                    const rebuy = Math.min(userChips, table.maxBuyIn);
+                    const finalRebuy = Math.max(rebuy, table.minBuyIn);
+                    // RESTA REBUY DE BANCA
+                    userChips -= finalRebuy;
+                    p.chips = finalRebuy;
+                    pokerInitialBuyIn = finalRebuy;
+                    pokerOutside = userChips;
+                    document.getElementById('user-chips').innerText = userChips.toLocaleString();
+                    const mb = document.getElementById('menu-bank'); if(mb) mb.innerText = `$${userChips.toLocaleString()}`;
+                    const lb = document.getElementById('lobby-chips'); if(lb) lb.innerText = `$${userChips.toLocaleString()}`;
+                    updateShopChips();
+                } else {
+                    const table = currentPokerTable;
+                    const rebuy = Math.min(1000, table.maxBuyIn);
+                    p.chips = Math.max(rebuy, table.minBuyIn);
+                }
+            } });
+            const n = gameState.players.length; gameState.dealerIndex = (gameState.dealerIndex + 1) % n;
+            gameState.deck = shuffledDeck(); gameState.community = []; gameState.stage = 'PREFLOP';
+            gameState.isShowdown = false; gameState.currentBet = 0; gameState.minRaise = currentPokerTable.bb;
+            gameState.bigBlind = currentPokerTable.bb; gameState.smallBlind = currentPokerTable.sb;
+            gameState.players.forEach(p => { p.cards = [gameState.deck.pop(), gameState.deck.pop()]; p.bet = 0; p.totalBet = 0; p.folded = false; p.hasActed = false; p.isAllIn = false; p._lastScore = null; });
+            let sbIdx = (n === 2) ? gameState.dealerIndex : (gameState.dealerIndex + 1) % n;
+            let bbIdx = (n === 2) ? (gameState.dealerIndex + 1) % n : (gameState.dealerIndex + 2) % n;
+            postBlind(sbIdx, gameState.smallBlind); postBlind(bbIdx, gameState.bigBlind);
+            gameState.currentBet = gameState.bigBlind; gameState.turnIndex = nextActiveIndex(bbIdx);
+            if (gameState.players[myPlayerIndex]) {
+                // Actualizar banca global con lo que tienes en mesa + resto que no llevaste
+                // Simplificado: banca global = fichas en mesa (por ahora)
+            }
+            renderPokerTable(); if (isOnline && isHost) syncGameState();
+            if (!isOnline || isHost) checkTurn();
+        }
+        function applyAction(idx, action, raiseTo) {
+            const p = gameState.players[idx]; if (!p || p.folded || p.chips < 0) return '';
+            const diff = gameState.currentBet - p.bet; let label = '';
+            if (action === 'fold') { if (diff <= 0) action = 'check'; else { p.folded = true; label = 'Se retira'; } }
+            if (action === 'check') { const call = Math.min(diff, p.chips); p.chips -= call; p.bet += call; p.totalBet += call; if (p.chips === 0) p.isAllIn = true; label = call > 0 ? `Iguala $${call}` : 'Pasa'; }
+            if (action === 'raise') {
+                let target = Math.max(p.bet, Math.min(raiseTo || 0, p.bet + p.chips)); const addAmt = target - p.bet; const actualAdd = Math.min(addAmt, p.chips);
+                p.chips -= actualAdd; p.bet += actualAdd; p.totalBet += actualAdd; const isAllIn = p.chips === 0;
+                if (p.bet > gameState.currentBet) {
+                    const increment = p.bet - gameState.currentBet; if (increment >= gameState.minRaise || isAllIn) gameState.minRaise = Math.max(gameState.minRaise, increment);
+                    gameState.currentBet = p.bet; gameState.players.forEach((pl, i2) => { if (i2 !== idx && !pl.folded && pl.chips > 0) pl.hasActed = false; });
+                    label = isAllIn ? `All-in $${p.bet}` : `Sube a $${p.bet}`;
+                } else label = isAllIn ? `All-in $${p.bet}` : (actualAdd > 0 ? `Iguala $${actualAdd}` : 'Pasa');
+                if (p.chips === 0) p.isAllIn = true;
+            }
+            p.hasActed = true; return label;
+        }
+        function isRoundOver() { if (activePlayers(gameState).length <= 1) return true; const canAct = playersWhoCanAct(gameState); if (canAct.length === 0) return true; return canAct.every(p => p.hasActed && p.bet === gameState.currentBet); }
+        function advanceTurnOrRound() { if (activePlayers(gameState).length <= 1) { distributePots(); return; } if (isRoundOver()) { nextPokerStage(); return; } gameState.turnIndex = nextActiveIndex(gameState.turnIndex); if (isOnline && isHost) syncGameState(); if (!isOnline || isHost) checkTurn(); }
+        function nextPokerStage() {
+            gameState.players.forEach(p => { p.bet = 0; p.hasActed = false; }); gameState.currentBet = 0; gameState.minRaise = gameState.bigBlind;
+            const curIdx = STAGE_ORDER.indexOf(gameState.stage);
+            if (curIdx === STAGE_ORDER.length - 1) { distributePots(); return; }
+            gameState.stage = STAGE_ORDER[curIdx + 1]; const dealCount = gameState.stage === 'FLOP' ? 3 : 1;
+            for (let i = 0; i < dealCount; i++) gameState.community.push(gameState.deck.pop());
+            renderPokerTable(); if (isOnline && isHost) syncGameState();
+            const canAct = playersWhoCanAct(gameState); if (canAct.length <= 1) { botTimeout = setTimeout(() => { if (!isOnline || isHost) nextPokerStage(); }, 900); return; }
+            gameState.turnIndex = nextActiveIndex(gameState.dealerIndex); if (isOnline && isHost) syncGameState(); if (!isOnline || isHost) checkTurn();
+        }
+        function combinations(arr, k) { const results = []; function helper(start, combo) { if (combo.length === k) { results.push(combo.slice()); return; } for (let i = start; i < arr.length; i++) { combo.push(arr[i]); helper(i + 1, combo); combo.pop(); } } helper(0, []); return results; }
+        function evaluate5(cards) {
+            const ranksSorted = cards.map(c => c.num).sort((a, b) => b - a); const suitsCount = {}, rankCount = {};
+            cards.forEach(c => { suitsCount[c.suit] = (suitsCount[c.suit] || 0) + 1; rankCount[c.num] = (rankCount[c.num] || 0) + 1; });
+            const isFlush = Object.values(suitsCount).some(v => v === 5); let uniqueRanks = [...new Set(ranksSorted)]; let straightHigh = null;
+            if (uniqueRanks.length >= 5) { for (let i = 0; i <= uniqueRanks.length - 5; i++) { if (uniqueRanks[i] - uniqueRanks[i + 4] === 4) { straightHigh = uniqueRanks[i]; break; } } }
+            if (straightHigh === null && uniqueRanks.includes(14) && [5, 4, 3, 2].every(r => uniqueRanks.includes(r))) straightHigh = 5;
+            const isStraight = straightHigh !== null; const groups = Object.entries(rankCount).map(([r, c]) => ({ rank: parseInt(r), count: c })).sort((a, b) => b.count - a.count || b.rank - a.rank);
+            if (isStraight && isFlush) return [8, straightHigh];
+            if (groups[0].count === 4) return [7, groups[0].rank, groups.find(g => g.count === 1).rank];
+            if (groups[0].count === 3 && groups[1] && groups[1].count >= 2) return [6, groups[0].rank, groups[1].rank];
+            if (isFlush) return [5, ...ranksSorted]; if (isStraight) return [4, straightHigh];
+            if (groups[0].count === 3) return [3, groups[0].rank, ...groups.filter(g => g.count === 1).map(g => g.rank).sort((a,b)=>b-a)];
+            if (groups[0].count === 2 && groups[1] && groups[1].count === 2) return [2, ...[groups[0].rank, groups[1].rank].sort((a,b)=>b-a), groups.find(g=>g.count===1).rank];
+            if (groups[0].count === 2) return [1, groups[0].rank, ...groups.filter(g => g.count === 1).map(g => g.rank).sort((a,b)=>b-a)];
+            return [0, ...ranksSorted];
+        }
+        function compareScores(a, b) { for (let i = 0; i < Math.max(a.length, b.length); i++) { const av = a[i] ?? -1, bv = b[i] ?? -1; if (av !== bv) return av - bv; } return 0; }
+        function evaluate7(cards) { let best = null; combinations(cards, 5).forEach(hand => { const score = evaluate5(hand); if (!best || compareScores(score, best) > 0) best = score; }); return best; }
+        function distributePots() {
+            gameState.isShowdown = true; 
+            const nonFolded = activePlayers(gameState);
+            if (nonFolded.length > 1 && gameState.community.length === 5) { nonFolded.forEach(p => { p._lastScore = evaluate7([...p.cards, ...gameState.community]); }); }
+            const totalPot = gameState.players.reduce((sum, p) => sum + p.totalBet, 0);
+            let winner = null;
+            if (nonFolded.length === 1) { winner = nonFolded[0]; } else { let bestScore = null; let winners = []; nonFolded.forEach(p => { if (!bestScore || compareScores(p._lastScore, bestScore) > 0) { bestScore = p._lastScore; winners = [p]; } else if (compareScores(p._lastScore, bestScore) === 0) { winners.push(p); } }); winner = winners[0]; }
+            winner.chips += totalPot;
+            // BANCA REAL: no sumamos aún a la banca, solo dejamos fichas en mesa. La banca se actualiza al salir (cobras mesa)
+            // Pero mostramos balance
+            renderPokerTable(); if (isOnline && isHost) syncGameState();
+            let msg = winner._lastScore ? `${winner.name} gana $${totalPot} (${HAND_NAMES[winner._lastScore[0]]})` : `${winner.name} gana $${totalPot} (rivales se retiraron)`;
+            const iWon = winner.id === gameState.players[myPlayerIndex]?.id;
+            const myChipsNow = gameState.players[myPlayerIndex] ? gameState.players[myPlayerIndex].chips : 0;
+            const profit = myChipsNow - pokerInitialBuyIn;
+            const profitTxt = profit >=0 ? `+${profit}` : `${profit}`;
+            const bancaSiSales = userChips + myChipsNow;
+            msg += `\nMesa: ${currentPokerTable.name} ${currentPokerTable.sb}/${currentPokerTable.bb}\nEn mesa: $${myChipsNow.toLocaleString()} (${profitTxt})\nSi sales ahora, banca: $${bancaSiSales.toLocaleString()}`;
+            showModal(iWon ? "¡Ganaste!" : "Mano Terminada", msg, iWon ? "win" : "info");
+            setTimeout(() => { closeModal(); if (!isOnline || isHost) startPokerHand(); }, 3500);
+        }
+        function renderPokerTable() {
+            document.getElementById('pot-amount').innerText = `$${gameState.players.reduce((s, p) => s + p.totalBet, 0)}`;
+            document.getElementById('current-bet-display').innerText = `$${gameState.currentBet}`;
+            document.getElementById('community-cards').innerHTML = gameState.community.map(c => renderCard(c, false, 'lg')).join('');
+            let turnName = gameState.players[gameState.turnIndex]?.name || ''; let stageL = {'PREFLOP':'Pre-Flop','FLOP':'Flop','TURN':'Turn','RIVER':'River'}[gameState.stage];
+            document.getElementById('game-status').innerText = gameState.isShowdown ? "Showdown!" : `${stageL} - Turno: ${turnName}`;
+            const n = gameState.players.length;
+            for (let i = 0; i < 4; i++) {
+                const el = document.getElementById(`player-${i}`); if (i >= n) { el.classList.add('hidden'); continue; }
+                const pIndex = (myPlayerIndex + i) % n; const p = gameState.players[pIndex];
+                el.classList.remove('hidden'); document.getElementById(`p${i}-name`).innerText = p.name; 
+                document.getElementById(`p${i}-chips`).innerText = p.chips >= 1000 ? `$${(p.chips/1000).toFixed(1)}k` : `$${p.chips}`;
+                document.getElementById(`p${i}-allin`).classList.toggle('hidden', !p.isAllIn || p.folded); document.getElementById(`p${i}-dealer`).classList.toggle('hidden', pIndex !== gameState.dealerIndex);
+                const betD = document.getElementById(`p${i}-bet`); if (p.bet > 0 && !p.folded) { betD.innerText = `$${p.bet}`; betD.classList.remove('hidden'); } else betD.classList.add('hidden');
+                document.getElementById(`p${i}-box`).classList.toggle('active-turn', gameState.turnIndex === pIndex && !gameState.isShowdown);
+                const handN = document.getElementById(`p${i}-handname`); if (gameState.isShowdown && !p.folded && p._lastScore) { handN.innerText = HAND_NAMES[p._lastScore[0]]; handN.classList.remove('hidden'); } else handN.classList.add('hidden');
+                const cardsC = document.getElementById(`p${i}-cards`);
+                if (p.folded) { cardsC.innerHTML = `<span class="bg-black/80 text-rose-500 text-[8px] px-1.5 py-0.5 rounded font-bold border border-rose-500/30">FOLD</span>`; el.style.opacity = '0.45'; }
+                else { el.style.opacity = '1'; const hide = (pIndex !== myPlayerIndex) && !gameState.isShowdown; cardsC.innerHTML = p.cards.map(c => renderCard(c, hide)).join(''); }
+            }
+            if (gameState.players[myPlayerIndex]) { 
+                const displayBank = userChips; // mostramos banca global
+                document.getElementById('user-chips').innerText = displayBank.toLocaleString(); 
+                const menuBank = document.getElementById('menu-bank'); if(menuBank) menuBank.innerText = `$${displayBank.toLocaleString()}`;
+            }
+        }
+        function checkTurn() {
+            renderPokerTable(); if (gameState.isShowdown) return;
+            if (!isOnline || isHost) { if (activePlayers(gameState).length <= 1) { distributePots(); return; } }
+            const currentP = gameState.players[gameState.turnIndex]; const myTurn = gameState.turnIndex === myPlayerIndex;
+            const controls = document.getElementById('poker-controls');
+            if (myTurn && currentP && !currentP.folded) {
+                controls.classList.remove('opacity-50', 'pointer-events-none');
+                const diff = gameState.currentBet - currentP.bet; document.getElementById('btn-check').innerText = diff > 0 ? `Igualar $${Math.min(diff, currentP.chips)}` : 'Pasar';
+                const slider = document.getElementById('raise-slider'); const maxTotal = currentP.chips + currentP.bet; const minTotal = Math.min(gameState.currentBet + gameState.minRaise, maxTotal);
+                slider.min = Math.max(1, minTotal); slider.max = Math.max(slider.min, maxTotal); slider.value = slider.min; slider.disabled = maxTotal <= gameState.currentBet;
+                document.getElementById('btn-raise').innerHTML = (parseInt(slider.max) <= parseInt(slider.min)) ? `All-in <span id="raise-lbl" class="bg-black/30 px-1 py-0 rounded ml-1">$${slider.value}</span>` : `Subir <span id="raise-lbl" class="bg-black/30 px-1 py-0 rounded ml-1">$${slider.value}</span>`;
+            } else { controls.classList.add('opacity-50', 'pointer-events-none'); if (!isOnline) { if (currentP.folded || currentP.chips <= 0) advanceTurnOrRound(); else botTimeout = setTimeout(botAction, 1100); } }
+        }
+        function userAction(action) {
+            if (isOnline && !isHost) { sendOnlineAction(action, action === 'raise' ? parseInt(document.getElementById('raise-slider').value) : null); document.getElementById('poker-controls').classList.add('opacity-50', 'pointer-events-none'); return; }
+            const label = applyAction(myPlayerIndex, action, action === 'raise' ? parseInt(document.getElementById('raise-slider').value) : null); showActionBubble(0, label); advanceTurnOrRound();
+        }
+        function botAction() {
+            const idx = gameState.turnIndex; const bot = gameState.players[idx]; const diff = gameState.currentBet - bot.bet;
+            let strength = 'weak'; let all = [...bot.cards, ...gameState.community];
+            if (all.length === 2) { if (bot.cards[0].num === bot.cards[1].num) strength = bot.cards[0].num > 9 ? 'strong' : 'medium'; else if (bot.cards[0].num > 10 && bot.cards[1].num > 10) strength = 'strong'; else if (bot.cards[0].num > 10 || bot.cards[1].num > 10) strength = 'medium'; }
+            else { const s = evaluate7(all)[0]; if (s >= 3) strength = 'strong'; else if (s >= 1) strength = 'medium'; }
+            const rnd = Math.random(); let label = '';
+            if (diff === 0) { if (strength === 'strong' && rnd < bot.aggression) label = applyAction(idx, 'raise', bot.bet + Math.max(gameState.minRaise, gameState.bigBlind * 2)); else label = applyAction(idx, 'check'); }
+            else { if (strength === 'strong') { if (rnd < bot.aggression && bot.chips > diff) label = applyAction(idx, 'raise', bot.bet + diff + gameState.minRaise); else label = applyAction(idx, 'check'); } else if (strength === 'medium') { label = (diff / (gameState.currentBet * 3) < 0.4 || rnd < bot.aggression * 0.6) ? applyAction(idx, 'check') : applyAction(idx, 'fold'); } else label = applyAction(idx, 'fold'); }
+            showActionBubble((idx - myPlayerIndex + 4) % 4, label); advanceTurnOrRound();
+        }
+
+        // ONLINE
+        function getMyId() { if (!myId) myId = crypto.randomUUID(); return myId; }
+        async function createOnlineRoom() {
+            const nameInput = document.getElementById('player-name-input').value.trim(); playerDisplayName = nameInput || "Host"; getMyId();
+            const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const room = { status: 'WAITING', hostId: myId, players: [{ id: myId, name: playerDisplayName, chips: userChips }], gameState: null, actionRequest: null };
+            try { const res = await window.storage.set(`room:${code}`, JSON.stringify(room), true); if (!res) throw new Error(); currentRoomId = code; isHost = true; myPlayerIndex = 0; activeGame = 'poker'; showScreen('screen-waiting'); document.getElementById('display-room-code').innerText = code; document.getElementById('online-indicator').classList.remove('hidden'); document.getElementById('btn-leave').classList.remove('hidden'); startPolling(); renderWaitingRoom(room); } catch (e) { showModal("Error", "No se pudo crear la sala.", "error"); }
+        }
+        async function joinOnlineRoom() {
+            const code = document.getElementById('room-code-input').value.trim().toUpperCase(); if (!code) return; const nameInput = document.getElementById('player-name-input').value.trim(); getMyId();
+            try { const res = await window.storage.get(`room:${code}`, true); if (!res) return showModal("Error", "Sala no encontrada.", "error"); const room = JSON.parse(res.value); if (room.status !== 'WAITING') return showModal("Error", "La partida ya comenzó.", "error"); if (room.players.length >= 4 && !room.players.some(p => p.id === myId)) return showModal("Error", "Sala llena.", "error"); if (!room.players.some(p => p.id === myId)) { room.players.push({ id: myId, name: nameInput || `Jugador ${room.players.length + 1}`, chips: userChips }); await window.storage.set(`room:${code}`, JSON.stringify(room), true); } currentRoomId = code; isHost = (room.hostId === myId); activeGame = 'poker'; showScreen('screen-waiting'); document.getElementById('display-room-code').innerText = code; document.getElementById('online-indicator').classList.remove('hidden'); document.getElementById('btn-leave').classList.remove('hidden'); startPolling(); renderWaitingRoom(room); } catch (e) { showModal("Error", "No se pudo unir a la sala.", "error"); }
+        }
+        function renderWaitingRoom(room) { document.getElementById('player-count').innerText = room.players.length; document.getElementById('waiting-players-list').innerHTML = room.players.map(p => `<li class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-xs"><i class="fa-solid fa-user"></i></div> ${p.name} ${room.hostId === p.id ? '<i class="fa-solid fa-crown text-amber-400 ml-1 text-xs"></i>' : ''}</li>`).join(''); isHost = room.hostId === myId; document.getElementById('btn-start-online').classList.toggle('hidden', !isHost || room.players.length < 2); document.getElementById('waiting-host-msg').classList.toggle('hidden', isHost); }
+        function startPolling() { if (pollInterval) clearInterval(pollInterval); pollInterval = setInterval(pollRoom, 1500); }
+        async function pollRoom() {
+            if (!currentRoomId || activeGame !== 'poker') return;
+            try { const res = await window.storage.get(`room:${currentRoomId}`, true); if (!res) return; const room = JSON.parse(res.value); myPlayerIndex = room.players.findIndex(p => p.id === myId); isHost = room.hostId === myId; if (room.status === 'WAITING') { renderWaitingRoom(room); } else if (room.status === 'PLAYING') { if (!document.getElementById('screen-waiting').classList.contains('hidden')) { showScreen('screen-poker'); document.getElementById('game-title').innerText = "TEXAS HOLD'EM"; document.getElementById('game-title').classList.remove('hidden'); isOnline = true; } gameState = room.gameState; if (isHost) hostProcessIncomingAction(room); else checkTurn(); } } catch (e) {}
+        }
+        async function startOnlineGameHost() {
+            if (!isHost || !currentRoomId) return;
+            try { const res = await window.storage.get(`room:${currentRoomId}`, true); const room = JSON.parse(res.value); gameState = { players: room.players.map(p => ({ ...p, cards: [], bet: 0, totalBet: 0, folded: false, isBot: false, hasActed: false, isAllIn: false, _lastScore: null })), community: [], deck: [], stage: 'PREFLOP', dealerIndex: -1, turnIndex: 0, currentBet: 0, minRaise: 20, bigBlind: 20, smallBlind: 10, isShowdown: false }; myPlayerIndex = gameState.players.findIndex(p => p.id === myId); isOnline = true; room.status = 'PLAYING'; await window.storage.set(`room:${currentRoomId}`, JSON.stringify(room), true); showScreen('screen-poker'); document.getElementById('game-title').innerText = "TEXAS HOLD'EM"; document.getElementById('game-title').classList.remove('hidden'); startPokerHand(); } catch (e) {}
+        }
+        async function syncGameState() { if (!isOnline || !currentRoomId) return; try { const res = await window.storage.get(`room:${currentRoomId}`, true); const room = JSON.parse(res.value); room.gameState = gameState; room.status = 'PLAYING'; await window.storage.set(`room:${currentRoomId}`, JSON.stringify(room), true); } catch (e) {} }
+        async function sendOnlineAction(action, amount) { try { const res = await window.storage.get(`room:${currentRoomId}`, true); const room = JSON.parse(res.value); room.actionRequest = { playerId: myId, action, amount, seq: Date.now() }; await window.storage.set(`room:${currentRoomId}`, JSON.stringify(room), true); } catch (e) {} }
+        function hostProcessIncomingAction(room) { const req = room.actionRequest; if (!req || req.seq <= lastProcessedSeq) { checkTurn(); return; } const actorIdx = gameState.players.findIndex(p => p.id === req.playerId); lastProcessedSeq = req.seq; if (actorIdx !== gameState.turnIndex || gameState.isShowdown) { checkTurn(); return; } const label = req.action === 'raise' ? applyAction(actorIdx, 'raise', req.amount) : applyAction(actorIdx, req.action); showActionBubble((actorIdx - myPlayerIndex + 4) % 4, label); advanceTurnOrRound(); }
+    </script>
+</body>
+</html>
