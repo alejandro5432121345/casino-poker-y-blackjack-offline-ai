@@ -11,7 +11,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - run: npm install
       - run: npx cap add android || true
       - run: npx cap sync android || true
