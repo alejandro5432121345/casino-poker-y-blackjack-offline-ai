@@ -1,0 +1,6 @@
+{
+  "appId": "com.casinopro.pokerblackjack",
+  "appName": "Casino Pro",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
