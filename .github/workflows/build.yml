@@ -11,11 +11,13 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
       - run: npm install
-      - run: npx cap add android || true
-      - run: npx cap sync android || true
+      - run: npm install @capacitor/core @capacitor/cli @capacitor/android
+      - run: rm -rf android
+      - run: npx cap add android
       - run: npx cap copy android
+      - run: npx cap sync android
       - name: Build APK
         run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
