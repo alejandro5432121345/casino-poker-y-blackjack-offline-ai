@@ -1,0 +1,9 @@
+{
+  "name": "casino-pro",
+  "version": "1.0.0",
+  "dependencies": {
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/cli": "^5.7.0"
+  }
+}
